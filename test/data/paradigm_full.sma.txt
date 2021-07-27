@@ -13,6 +13,7 @@ N+Number+Case
 N+Ess
 N+Number+Case+Possessive
 N+Ess+Possessive
+N+Prop+Number+Case
 N+ACR+Number+Case
 N+ACR+Ess
 N+ACR+Cmpnd
