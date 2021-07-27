@@ -69,6 +69,3 @@ Adv+ABBR
 Num+ABBR+Case?
 V+ABBR+IV+PrfPrc
 V+ABBR+TV+Imprt
-#ABBR+Wordclass?+Case?+Mood?
-#ABBR+N+Attr
-
