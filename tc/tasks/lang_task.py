@@ -1,0 +1,37 @@
+from .common import linux_build_task, macos_task
+from .gha import GithubAction
+from decisionlib import CONFIG
+import os.path
+
+
+def create_lang_task(with_apertium):
+    if os.path.isfile(".build-config.yml"):
+        print("Found config file, do something with it now")
+
+    return (
+        linux_build_task("Lang build", bundle_dest="lang")
+        .with_additional_repo(
+            "https://github.com/giellalt/giella-core.git", "../giella-core"
+        )
+        .with_additional_repo(
+            "https://github.com/giellalt/giella-shared.git", "../giella-shared"
+        )
+        .with_gha(GithubAction("divvun/actions/lang/install-deps", {"sudo": "false"}))
+        .with_gha(GithubAction("divvun/actions/lang/build", {"fst": "hfst"}))
+        .with_named_artifacts("spellers", "./build/tools/spellcheckers/*.zhfst")
+        .find_or_create("build.linux_x64.%s" % CONFIG.tree_hash())
+    )
+
+
+def create_bundle_task(os, type_, lang_task_id):
+    if os == "windows-latest":
+        # TODO
+        return
+    elif os == "macos-latest":
+        return (
+            macos_task("Bundle lang: %s %s" % (os, type_))
+            .with_curl_artifact_script(lang_task_id, "spellcheckers.bundle.tar.gz")
+            .find_or_create("bundle.%s_x64_%s.%s" % (os, type_, CONFIG.tree_hash()))
+        )
+    else:
+        raise NotImplemented

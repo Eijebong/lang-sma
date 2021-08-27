@@ -1,0 +1,1 @@
+--without-forrest --disable-silent-rules --without-xfst --enable-spellers --enable-hfst-mobile-speller --disable-hfst-desktop-spellers --enable-reversed-intersect --enable-twostep-intersect
