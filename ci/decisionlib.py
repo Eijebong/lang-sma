@@ -862,7 +862,7 @@ class DockerWorkerTask(UnixTaskMixin, Task):
             """
             pip install %s
         """
-            % " ".join(pkgname)
+            % " ".join(pkgnames)
         )
 
     def with_additional_repo(self, repo_url, target):
