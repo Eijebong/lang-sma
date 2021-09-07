@@ -15,7 +15,7 @@ class Autotools:
             autoreconf -fi
             ./autogen.sh
             mkdir -p %s
-            cd %s && ../configure `[[ -f ../.ci-configure-flags ]] && cat ../.ci-configure-flags ]]`
+            cd %s && ../configure `[[ -f ../.ci-configure-flags ]] && cat ../.ci-configure-flags`
             make
         """ % (self.build_dir, self.build_dir)
 
