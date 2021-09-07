@@ -47,7 +47,9 @@ def get_lang_task(with_apertium):
         )
         .with_script(Autotools("../giella-shared").as_script())
         .with_script(Autotools("../giella-core").as_script())
-        .with_script(Autotools().as_script())
+        .with_script(Autotools().with_build_dir().as_script())
+        .with_script("ls build/tools/spellcheckers/weights")
+        .with_artifacts("repo/build/tools/spellcheckers/", type="directory")
         .find_or_create("build.linux_x64.%s" % CONFIG.tree_hash())
     )
 

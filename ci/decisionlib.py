@@ -739,11 +739,11 @@ class DockerWorkerTask(UnixTaskMixin, Task):
     with_env = chaining(update_attr, "env")
     with_capabilities = chaining(update_attr, "capabilities")
 
-    def with_artifacts(self, *paths):
+    def with_artifacts(self, *paths, type="file"):
         for path in paths:
             if path in self.artifacts:
                 raise ValueError("Duplicate artifact: " + path)  # pragma: no cover
-            self.artifacts.append(path)
+            self.artifacts.append((path, type))
         return self
 
     def build_worker_payload(self):
@@ -775,11 +775,11 @@ class DockerWorkerTask(UnixTaskMixin, Task):
             artifacts={
                 "public/"
                 + url_basename(path): {
-                    "type": "file",
+                    "type": type,
                     "path": path,
                     "expires": SHARED.from_now_json(self.index_and_artifacts_expire_in),
                 }
-                for path in self.artifacts
+                for (path, type) in self.artifacts
             },
         )
 
