@@ -729,6 +729,7 @@ class DockerWorkerTask(UnixTaskMixin, Task):
         self.features = {}
         self.capabilities = {}
         self.artifacts = []
+        self.ci_helper_path = None
 
     with_docker_image = chaining(setattr, "docker_image")
     with_max_run_time_minutes = chaining(setattr, "max_run_time_minutes")
@@ -872,6 +873,10 @@ class DockerWorkerTask(UnixTaskMixin, Task):
         """
             % (repo_url, target)
         )
+
+    def with_ci_helper(self, repo_url):
+        self.ci_helper_path = "/ci-helper"
+        return self.with_additional_repo(repo_url, self.ci_helper_path)
 
 
 def expand_dockerfile(dockerfile):

@@ -32,6 +32,8 @@ def linux_build_task(name):
         .with_apt_update()
         .with_apt_install("curl", "git", "wget")
         .with_env(**build_env, **linux_build_env)
+        # TODO: Change this!
+        .with_ci_helper("https://github.com/Eijebong/lang-sma.git")
         .with_repo_bundle()
     )
     return task
