@@ -40,3 +40,11 @@ def linux_build_task(name):
 
 
 
+def macos_task(name):
+    return (
+        decisionlib.MacOsGenericWorkerTask(name)
+            .with_worker_type("macos")
+            .with_provisioner_id("divvun")
+            .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
+            .with_max_run_time_minutes(60)
+    )

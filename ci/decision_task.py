@@ -4,10 +4,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import os
 import os.path
 import decisionlib
 from decisionlib import CONFIG, SHARED
-from tasks import get_lang_task
+from tasks import create_lang_task, create_bundle_task
 
 
 def tasks(task_for):
@@ -32,7 +33,9 @@ def tasks(task_for):
 
     repo_name = os.environ["REPO_NAME"]
     if repo_name.startswith("lang-"):
-        get_lang_task(repo_name.endswith('apertium'))
+        lang_task_id = create_lang_task(repo_name.endswith('apertium'))
+        for os_, type_ in (("macos-latest", "speller-macos"), ("macos-latest", "speller-mobile"), ("windows-latest", "speller-windows")):
+            create_bundle_task(os_, type_, lang_task_id)
 
 
 build_dependencies_artifacts_expire_in = "1 month"

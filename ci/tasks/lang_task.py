@@ -1,9 +1,9 @@
-from .common import linux_build_task
+from .common import linux_build_task, macos_task
 from .autotools import Autotools
 from decisionlib import CONFIG
 import os.path
 
-def get_lang_task(with_apertium):
+def create_lang_task(with_apertium):
     lang_deps = [
         "wget",
         "build-essential",
@@ -30,7 +30,7 @@ def get_lang_task(with_apertium):
 
 
     return (
-        linux_build_task("Linux debug build")
+        linux_build_task("Lang build")
         .with_script(
             """
             wget -q https://apertium.projectjj.com/apt/install-nightly.sh -O install-nightly.sh && bash install-nightly.sh
@@ -48,10 +48,20 @@ def get_lang_task(with_apertium):
         .with_script(Autotools("../giella-shared").as_script())
         .with_script(Autotools("../giella-core").as_script())
         .with_script(Autotools().with_build_dir().as_script())
-        .with_script("ls build/tools/spellcheckers/weights")
         .with_artifacts("repo/build/tools/spellcheckers/", type="directory")
         .find_or_create("build.linux_x64.%s" % CONFIG.tree_hash())
     )
 
 
+def create_bundle_task(os, type_, lang_task_id):
+    if os == "windows-latest":
+        # TODO
+        return
+    elif os == "macos-latest":
+        return (macos_task("Bundle lang: %s %s" % (os, type_))
+            .with_curl_artifact_script(lang_task_id, "public/build/tools/spellcheckers")
+            .find_or_create("bundle.%s_x64_%s.%s" % (os, type_, CONFIG.tree_hash()))
+        )
+    else:
+        raise NotImplemented
 
