@@ -155,6 +155,7 @@ class Task:
         self.git_fetch_url = CONFIG.git_url
         self.git_fetch_ref = CONFIG.git_ref
         self.git_checkout_sha = CONFIG.git_sha
+        self.artifacts = []
 
     # All `with_*` methods return `self`, so multiple method calls can be chained.
     with_description = chaining(setattr, "description")
@@ -176,6 +177,21 @@ class Task:
 
     def with_index_at(self, index_path):
         self.routes.append("index.%s.%s" % (CONFIG.index_prefix, index_path))
+        return self
+
+    def with_artifacts(self, *paths, type="file"):
+        """
+        Add each path in `paths` as a task artifact
+        that expires in `self.index_and_artifacts_expire_in`.
+
+        `type` can be `"file"` or `"directory"`.
+
+        Paths are relative to the task’s home directory.
+        """
+        for path in paths:
+            if (type, path) in self.artifacts:
+                raise ValueError("Duplicate artifact: " + path)  # pragma: no cover
+            self.artifacts.append(tuple((type, path)))
         return self
 
     def build_worker_payload(self):  # pragma: no cover
@@ -316,7 +332,6 @@ class GenericWorkerTask(Task):
         self.env = {}
         self.features = {}
         self.mounts = []
-        self.artifacts = []
 
     with_max_run_time_minutes = chaining(setattr, "max_run_time_minutes")
     with_mounts = chaining(append_to_attr, "mounts")
@@ -354,21 +369,6 @@ class GenericWorkerTask(Task):
                 for type_, path in self.artifacts
             ],
         )
-
-    def with_artifacts(self, *paths, type="file"):
-        """
-        Add each path in `paths` as a task artifact
-        that expires in `self.index_and_artifacts_expire_in`.
-
-        `type` can be `"file"` or `"directory"`.
-
-        Paths are relative to the task’s home directory.
-        """
-        for path in paths:
-            if (type, path) in self.artifacts:
-                raise ValueError("Duplicate artifact: " + path)  # pragma: no cover
-            self.artifacts.append(tuple((type, path)))
-        return self
 
     def with_features(self, *names):
         """
@@ -728,7 +728,6 @@ class DockerWorkerTask(UnixTaskMixin, Task):
         self.caches = {}
         self.features = {}
         self.capabilities = {}
-        self.artifacts = []
         self.ci_helper_path = None
 
     with_docker_image = chaining(setattr, "docker_image")
@@ -738,13 +737,6 @@ class DockerWorkerTask(UnixTaskMixin, Task):
     with_caches = chaining(update_attr, "caches")
     with_env = chaining(update_attr, "env")
     with_capabilities = chaining(update_attr, "capabilities")
-
-    def with_artifacts(self, *paths, type="file"):
-        for path in paths:
-            if path in self.artifacts:
-                raise ValueError("Duplicate artifact: " + path)  # pragma: no cover
-            self.artifacts.append((path, type))
-        return self
 
     def build_worker_payload(self):
         """
@@ -775,11 +767,11 @@ class DockerWorkerTask(UnixTaskMixin, Task):
             artifacts={
                 "public/"
                 + url_basename(path): {
-                    "type": type,
+                    "type": type_,
                     "path": path,
                     "expires": SHARED.from_now_json(self.index_and_artifacts_expire_in),
                 }
-                for (path, type) in self.artifacts
+                for (type_, path) in self.artifacts
             },
         )
 
@@ -875,7 +867,7 @@ class DockerWorkerTask(UnixTaskMixin, Task):
         )
 
     def with_ci_helper(self, repo_url):
-        self.ci_helper_path = "/ci-helper"
+        self.ci_helper_path = "/ci"
         return self.with_additional_repo(repo_url, self.ci_helper_path)
 
 

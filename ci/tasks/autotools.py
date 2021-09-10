@@ -25,9 +25,10 @@ class Autotools:
         if self.build_dir:
             script += "mkdir -p %s && pushd %s" % (self.build_dir, self.build_dir)
 
+        # TODO: nproc ?
         script += """
             %s `[[ -f ../.ci-configure-flags ]] && cat ../.ci-configure-flags`
-            make
+            make -j16
         """ % self.configure_path
 
         if self.build_dir:
