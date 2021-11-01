@@ -13,11 +13,9 @@
 Project-independent library for Taskcluster decision tasks
 """
 
-import base64
 import contextlib
 import datetime
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -337,10 +335,19 @@ class Task:
         SHARED.found_or_created_indexed_tasks[index_path] = task_id
         return task_id
 
+    def with_additional_repo(self, repo_url, target):
+        return self.with_script(
+            """
+            git clone --depth=1 %s %s
+        """
+            % (repo_url, target)
+        )
+
+
     def with_curl_script(self, url, file_path):
         return self.with_script(
             """
-            curl --compressed --retry 5 --connect-timeout 10 -Lf "%s" -o "%s"
+            curl --compressed --ssl-no-revoke --retry 5 --connect-timeout 10 -Lf "%s" -o "%s"
         """
             % (url, file_path)
         )
@@ -380,9 +387,6 @@ class Task:
             .with_script("mkdir -p $HOME/$TASK_ID/_actions")
             .with_curl_artifact_script(CONFIG.decision_task_id, path, out_directory="$HOME/$TASK_ID/_actions", directory="private")
             .with_script(f"bash $HOME/$TASK_ID/_actions/{path}"))
-
-    def with_additional_repo(self, repo_url, target):  # pragma: no cover
-        raise NotImplementedError
 
 
 class GenericWorkerTask(Task):
@@ -529,8 +533,8 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
                 self.worker_type,
             )
             self.scopes.append(rdp_scope)
-        self.scopes.append("generic-worker:os-group:proj-servo/win2016/Administrators")
-        self.scopes.append("generic-worker:run-as-administrator:proj-servo/win2016")
+        self.scopes.append("generic-worker:os-group:divvun/windows/Administrators")
+        self.scopes.append("generic-worker:run-as-administrator:divvun/windows")
         self.with_features("runAsAdministrator")
         return dict_update_if_truthy(
             super().build_worker_payload(),
@@ -552,6 +556,16 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
             )
         return self
 
+    def with_repo_bundle(self, name, dest, **kwargs):
+        return self.with_curl_artifact_script(
+            CONFIG.decision_task_id, f"{name}.bundle", "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%"
+        ).with_repo(
+            "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\" + dest,
+            f"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\{name}.bundle",
+            CONFIG.git_bundle_shallow_ref,
+            "FETCH_HEAD",
+            **kwargs,
+        )
     def with_repo(self, path, fetch_url, fetch_ref, checkout_sha, sparse_checkout=None):
         """
         Make a clone the git repository at the start of the task.
@@ -579,7 +593,7 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
                 type .git\\info\\sparse-checkout
             """
         git += """
-            git fetch --no-tags {} {}
+            git fetch --verbose --no-tags {} {}
             git reset --hard {}
         """.format(
             assert_truthy(fetch_url),
@@ -596,8 +610,7 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
         """
         return self.with_path_from_homedir("git\\cmd").with_directory_mount(
             "https://github.com/git-for-windows/git/releases/download/"
-            + "v2.24.0.windows.2/MinGit-2.24.0.2-64-bit.zip",
-            sha256="c33aec6ae68989103653ca9fb64f12cabccf6c61d0dde30c50da47fc15cf66e2",
+            + "v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip",
             path="git",
         )
 
@@ -607,10 +620,9 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
 
     def with_curl(self):
         return self.with_path_from_homedir(
-            "curl\\curl-7.73.0-win64-mingw\\bin"
+            "curl\\curl-7.79.1-win64-mingw\\bin"
         ).with_directory_mount(
-            "https://curl.haxx.se/windows/dl-7.73.0/curl-7.73.0-win64-mingw.zip",
-            sha256="2e1ffdb6c25c8648a1243bb3a268120be442399b1c93d7da309bba235ecdab9a",
+            "https://curl.se/windows/dl-7.79.1_4/curl-7.79.1_4-win64-mingw.zip",
             path="curl",
         )
 
@@ -690,6 +702,20 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
             .with_script("pip install virtualenv==20.2.1")
         )
 
+    def with_gha(self, gha):
+        if gha.git_fetch_url not in self.action_paths:
+            self.with_additional_repo(gha.git_fetch_url, gha.repo_name)
+            self.action_paths.add(gha.git_fetch_url)
+
+        script = gha.env_variables_windows()
+        script += "node {}/{}".format(gha.repo_name, gha.script_path)
+        path = gha.path.replace('/', '_') + '.bat'
+        create_extra_artifact(path, script.encode())
+
+        return (self
+            .with_script("mkdir -p %HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\_actions")
+            .with_curl_artifact_script(CONFIG.decision_task_id, path, out_directory="%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\_actions", directory="private")
+            .with_script(f"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\_actions\\{path}"))
 
 class UnixTaskMixin(Task):
     def with_repo(
@@ -913,14 +939,6 @@ class DockerWorkerTask(UnixTaskMixin, Task):
             pip install %s
         """
             % " ".join(pkgnames)
-        )
-
-    def with_additional_repo(self, repo_url, target):
-        return self.with_script(
-            """
-            git clone --depth=1 %s %s
-        """
-            % (repo_url, target)
         )
 
     def with_named_artifacts(self, name, path):

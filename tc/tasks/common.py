@@ -51,3 +51,17 @@ def macos_task(name):
         .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
         .with_max_run_time_minutes(60)
     )
+
+
+def windows_task(name):
+    return (
+        decisionlib.WindowsGenericWorkerTask(name)
+        .with_worker_type("windows")
+        .with_provisioner_id("divvun")
+        .with_scopes("queue:get-artifact:private/*")
+        .with_script("mkdir %HOMEDRIVE%%HOMEPATH%\\%TASK_ID%")
+        .with_features("taskclusterProxy")
+        .with_repo_bundle("ci", "ci")
+        .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
+        .with_max_run_time_minutes(60)
+    )

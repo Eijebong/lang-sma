@@ -1,4 +1,4 @@
-from .common import linux_build_task, macos_task
+from .common import linux_build_task, macos_task, windows_task
 from .gha import GithubAction
 from decisionlib import CONFIG
 import os.path
@@ -26,8 +26,14 @@ def create_lang_task(with_apertium):
 def create_bundle_task(os, type_, lang_task_id):
     if os == "windows-latest":
         # TODO
-        return
+        return (
+            windows_task("Bundle lang: %s %s" % (os, type_))
+            .with_git()
+            .with_gha(GithubAction("divvun/actions/pahkat/init", {"repo": "https://pahkat.uit.no/devtools/", "channel": "nightly", "packages": "pahkat-uploader" }))
+            .find_or_create("bundle.%s_x64_%s.%s" % (os, type_, CONFIG.tree_hash()))
+        )
     elif os == "macos-latest":
+        return
         return (
             macos_task("Bundle lang: %s %s" % (os, type_))
             .with_curl_artifact_script(lang_task_id, "spellcheckers.bundle.tar.gz")

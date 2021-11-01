@@ -27,6 +27,20 @@ class GithubAction:
 
         return out
 
+    def env_variables_windows(self):
+        out = ""
+        for k, v in self.args.items():
+            k = k.upper()
+            escaped_v = str(v).replace('"','\\"')
+            out += f"set INPUT_{k}=\"{escaped_v}\"\n"
+
+        # TODO: Move this to cwd/_temp
+        out += "set RUNNER_TEMP=_temp\n"
+        # TODO: Move this to cwd/_work
+        out += "set GITHUB_WORKSPACE=\"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\\"\n"
+
+        return out
+
     def parse_config(self):
         url = 'https://raw.githubusercontent.com/' + self.repo_name + '/master/' + self.action_path + '/action.yml'
         config = requests.get(url).text
