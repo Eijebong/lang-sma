@@ -16,9 +16,12 @@ def create_lang_task(with_apertium):
         .with_additional_repo(
             "https://github.com/giellalt/giella-shared.git", "../giella-shared"
         )
-        .with_gha(GithubAction("divvun/actions/lang/install-deps", {"sudo": "false"}))
-        .with_gha(GithubAction("divvun/actions/lang/build", {"fst": "hfst"}))
-        .with_named_artifacts("spellers", "./build/tools/spellcheckers/*.zhfst")
+        .with_script("echo \"ééé\"")
+        .with_script("export FOO=\"ééé\"")
+        .with_script("echo $FOO")
+        .with_gha(GithubAction("Eijebong/divvun-actions/lang/install-deps", {"sudo": "false"}))
+        #.with_gha(GithubAction("divvun/actions/lang/build", {"fst": "hfst"}))
+        #.with_named_artifacts("spellers", "./build/tools/spellcheckers/*.zhfst")
         .find_or_create("build.linux_x64.%s" % CONFIG.tree_hash())
     )
 
@@ -30,6 +33,7 @@ def create_bundle_task(os, type_, lang_task_id):
             windows_task("Bundle lang: %s %s" % (os, type_))
             .with_git()
             .with_gha(GithubAction("divvun/actions/pahkat/init", {"repo": "https://pahkat.uit.no/devtools/", "channel": "nightly", "packages": "pahkat-uploader" }))
+            .with_script("echo ééé")
             .find_or_create("bundle.%s_x64_%s.%s" % (os, type_, CONFIG.tree_hash()))
         )
     elif os == "macos-latest":

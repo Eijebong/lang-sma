@@ -191,6 +191,7 @@ class Task:
         self.artifacts = []
         self.env = {}
         self.scripts = []
+        self.prescripts = []  # Those scripts will be ran before we try to filter secrets
         self.action_paths = set()
 
     # All `with_*` methods return `self`, so multiple method calls can be chained.
@@ -211,9 +212,23 @@ class Task:
 
     with_extra = chaining(update_attr, "extra")
 
-    with_script = chaining(append_to_attr, "scripts")
-    with_early_script = chaining(prepend_to_attr, "scripts")
+    with_prescript = chaining(append_to_attr, "prescripts")
+    with_early_prescript = chaining(prepend_to_attr, "prescripts")
     with_env = chaining(update_attr, "env")
+
+    def with_script(self, *script, pre=False):
+        if pre:
+            return self.with_prescript(*script)
+
+        self.scripts.extend(script)
+        return self
+
+    def with_early_script(self, *script, pre=False):
+        if pre:
+            return self.with_early_prescript(*script)
+
+        self.scripts[0:0] = list(script)
+        return self
 
     def with_index_at(self, index_path):
         self.routes.append("index.%s.%s" % (CONFIG.index_prefix, index_path))
@@ -344,33 +359,34 @@ class Task:
         )
 
 
-    def with_curl_script(self, url, file_path):
+    def with_curl_script(self, url, file_path, *, pre=False):
         return self.with_script(
             """
             curl --compressed --ssl-no-revoke --retry 5 --connect-timeout 10 -Lf "%s" -o "%s"
         """
-            % (url, file_path)
+            % (url, file_path), pre=pre
         )
 
     def with_curl_artifact_script(
-        self, task_id, artifact_name, out_directory="", directory="public"
+        self, task_id, artifact_name, out_directory="", directory="public", pre=False
     ):
         queue_service = os.environ["TASKCLUSTER_PROXY_URL"] + "/api/queue"
         return self.with_dependencies(task_id).with_curl_script(
             queue_service
             + "/v1/task/%s/artifacts/%s/%s" % (task_id, directory, artifact_name),
-            os.path.join(out_directory, url_basename(artifact_name)),
+            os.path.join(out_directory, url_basename(artifact_name)), pre=pre
         )
 
-    def with_repo_bundle(self, name, dest, **kwargs):
+    def with_repo_bundle(self, name, dest, *, pre=False, **kwargs):
         return self.with_curl_artifact_script(
-            CONFIG.decision_task_id, f"{name}.bundle", "$HOME/$TASK_ID"
+            CONFIG.decision_task_id, f"{name}.bundle", "$HOME/$TASK_ID", pre=True
         ).with_repo(
             "$HOME/$TASK_ID/" + dest,
             f"$HOME/$TASK_ID/{name}.bundle",
             CONFIG.git_bundle_shallow_ref,
             "FETCH_HEAD",
             **kwargs,
+            pre=pre
         )
 
     def with_gha(self, gha):
@@ -543,30 +559,35 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
         )
 
     def build_command(self):
-        return [deindent(s) for s in self.scripts]
+        return ["cmd.exe /C \"({}) && ({} | python %HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\ci\\tc\\filter.py)\"".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts)))]
 
-    def with_path_from_homedir(self, *paths):
+    def with_path_from_homedir(self, *paths, pre=False):
         """
         Interpret each path in `paths` as relative to the task’s home directory,
         and add it to the `PATH` environment variable.
         """
         for p in paths:
             self.with_early_script(
-                "set PATH=%HOMEDRIVE%%HOMEPATH%\\{};%PATH%".format(p)
+                "set \"PATH=%HOMEDRIVE%%HOMEPATH%\\{};%PATH%\"".format(p), pre=pre
+            )
+            self.with_early_script(
+                "set \"PATH=%HOMEDRIVE%%HOMEPATH%\\{};%PATH%\"".format(p), pre=pre
             )
         return self
 
-    def with_repo_bundle(self, name, dest, **kwargs):
+    def with_repo_bundle(self, name, dest, pre=False, **kwargs):
         return self.with_curl_artifact_script(
-            CONFIG.decision_task_id, f"{name}.bundle", "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%"
+            CONFIG.decision_task_id, f"{name}.bundle", "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%", pre=pre
         ).with_repo(
             "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\" + dest,
             f"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\{name}.bundle",
             CONFIG.git_bundle_shallow_ref,
             "FETCH_HEAD",
+            pre=pre,
             **kwargs,
         )
-    def with_repo(self, path, fetch_url, fetch_ref, checkout_sha, sparse_checkout=None):
+
+    def with_repo(self, path, fetch_url, fetch_ref, checkout_sha, sparse_checkout=None, pre=False):
         """
         Make a clone the git repository at the start of the task.
         This uses `CONFIG.git_url`, `CONFIG.git_ref`, and `CONFIG.git_sha`,
@@ -600,27 +621,27 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
             assert_truthy(fetch_ref),
             assert_truthy(checkout_sha),
         )
-        return self.with_git().with_script(git)
+        return self.with_git(pre=pre).with_script(git, pre=pre)
 
-    def with_git(self):
+    def with_git(self, pre=False):
         """
         Make the task download `git-for-windows` and make it available for `git` commands.
 
         This is implied by `with_repo`.
         """
-        return self.with_path_from_homedir("git\\cmd").with_directory_mount(
+        return self.with_path_from_homedir("git\\cmd", pre=pre).with_directory_mount(
             "https://github.com/git-for-windows/git/releases/download/"
             + "v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip",
             path="git",
         )
 
-    def with_curl_script(self, url, file_path):
-        self.with_curl()
-        return super().with_curl_script(url, file_path)
+    def with_curl_script(self, url, file_path, *, pre=False):
+        self.with_curl(pre=pre)
+        return super().with_curl_script(url, file_path, pre=pre)
 
-    def with_curl(self):
+    def with_curl(self, *, pre=False):
         return self.with_path_from_homedir(
-            "curl\\curl-7.79.1-win64-mingw\\bin"
+            "curl\\curl-7.79.1-win64-mingw\\bin", pre=pre
         ).with_directory_mount(
             "https://curl.se/windows/dl-7.79.1_4/curl-7.79.1_4-win64-mingw.zip",
             path="curl",
@@ -683,7 +704,8 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
             "public/repacked.zip", task_id=repack_task, path=path
         )
 
-    def with_python3(self):
+
+    def with_python3(self, pre=False):
         """
         For Python 3, use `with_directory_mount` and the "embeddable zip file" distribution
         from python.org.
@@ -692,14 +714,15 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
         """
         return (
             self.with_curl_script(
-                "https://www.python.org/ftp/python/3.7.3/python-3.7.3-amd64.exe",
+                "https://www.python.org/ftp/python/3.10.0/python-3.10.0-amd64.exe",
                 "do-the-python.exe",
+                pre=pre
             )
             .with_script(
-                "do-the-python.exe /quiet TargetDir=%HOMEDRIVE%%HOMEPATH%\\python3"
+                "start /wait do-the-python.exe /quiet TargetDir=%HOMEDRIVE%%HOMEPATH%\\python3 InstallAllUsers=0 InstallLauncherAllUsers=0 /log C:\\log",
+                pre=pre
             )
-            .with_path_from_homedir("python3", "python3\\Scripts")
-            .with_script("pip install virtualenv==20.2.1")
+            .with_path_from_homedir("python3", "python3\\Scripts", pre=pre)
         )
 
     def with_gha(self, gha):
@@ -719,7 +742,7 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
 
 class UnixTaskMixin(Task):
     def with_repo(
-        self, name, fetch_url, fetch_ref, checkout_sha, alternate_object_dir=""
+        self, name, fetch_url, fetch_ref, checkout_sha, alternate_object_dir="", pre=False
     ):
         """
         Make a clone the git repository at the start of the task.
@@ -749,7 +772,7 @@ class UnixTaskMixin(Task):
                 assert_truthy(fetch_ref),
                 assert_truthy(checkout_sha),
                 alternate=alternate_object_dir,
-            )
+            ), pre=pre
         )
 
 
@@ -838,7 +861,7 @@ class DockerWorkerTask(UnixTaskMixin, Task):
                 "-o",
                 "pipefail",
                 "-c",
-                deindent("\n".join(self.scripts)),
+                "({}) && (({}) 2>&1 | python3 $HOME/$TASK_ID/ci/tc/filter.py)".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts))),
             ],
         }
         return dict_update_if_truthy(
@@ -918,27 +941,27 @@ class DockerWorkerTask(UnixTaskMixin, Task):
             }
         )
 
-    def with_apt_update(self):
+    def with_apt_update(self, *, pre=False):
         return self.with_script(
             """
             apt update
-        """
+        """, pre=pre
         )
 
-    def with_apt_install(self, *pkgnames):
+    def with_apt_install(self, *pkgnames, pre=False):
         return self.with_script(
             """
             DEBIAN_FRONTEND=noninteractive apt install -y %s
         """
-            % " ".join(pkgnames)
+            % " ".join(pkgnames), pre=pre
         )
 
-    def with_pip_install(self, *pkgnames):
+    def with_pip_install(self, *pkgnames, pre=False):
         return self.with_script(
             """
             pip install %s
         """
-            % " ".join(pkgnames)
+            % " ".join(pkgnames), pre=pre
         )
 
     def with_named_artifacts(self, name, path):

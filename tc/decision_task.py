@@ -34,6 +34,7 @@ def tasks(task_for):
     repo_name = os.environ["REPO_NAME"]
     if repo_name.startswith("lang-"):
         lang_task_id = create_lang_task(repo_name.endswith("apertium"))
+        #lang_task_id=None
         for os_, type_ in (("macos-latest", "speller-macos"), ("macos-latest", "speller-mobile"), ("windows-latest", "speller-windows")):
             create_bundle_task(os_, type_, lang_task_id)
 
