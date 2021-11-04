@@ -41,6 +41,7 @@ for name in secret_names:
         pass
 
 stdin = codecs.getreader('utf-8')(sys.stdin.buffer)
+
 for line in stdin.readlines():
     for secret in secrets:
         line = line.replace(secret, "https://www.youtube.com/watch?v=zwZISypgA9M")

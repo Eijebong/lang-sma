@@ -559,7 +559,7 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
         )
 
     def build_command(self):
-        return ["cmd.exe /C \"({}) && ({} | python %HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\ci\\tc\\filter.py)\"".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts)))]
+        return ["cmd.exe /C \"({}) && ({} | python -u %HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\ci\\tc\\filter.py)\"".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts)))]
 
     def with_path_from_homedir(self, *paths, pre=False):
         """
@@ -861,7 +861,7 @@ class DockerWorkerTask(UnixTaskMixin, Task):
                 "-o",
                 "pipefail",
                 "-c",
-                "({}) && (({}) 2>&1 | python3 $HOME/$TASK_ID/ci/tc/filter.py)".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts))),
+                "({}) && (({}) 2>&1 | python3 -u $HOME/$TASK_ID/ci/tc/filter.py)".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts))),
             ],
         }
         return dict_update_if_truthy(
