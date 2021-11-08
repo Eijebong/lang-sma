@@ -24,9 +24,11 @@ def create_lang_task(with_apertium):
 
 
 def create_bundle_task(os, type_, lang_task_id):
+    print("Task ID: ", lang_task_id)
     if os == "windows-latest":
         return (
             windows_task("Bundle lang: %s %s" % (os, type_))
+            .with_output_from(lang_task_id)
             .with_git()
             .with_gha(GithubAction("Eijebong/divvun-actions/pahkat/init", {"repo": "https://pahkat.uit.no/devtools/", "channel": "nightly", "packages": "pahkat-uploader" }))
             .with_curl_artifact_script(lang_task_id, "spellers.tar.gz")

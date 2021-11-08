@@ -1,6 +1,7 @@
 from taskcluster import helper
 import sys
 import codecs
+import decisionlib
 
 secrets_service = helper.TaskclusterConfig().get_service("secrets")
 secret_names = set()
@@ -40,10 +41,45 @@ for name in secret_names:
         # listing so we have to try to get them all.
         pass
 
-stdin = codecs.getreader('utf-8')(sys.stdin.buffer)
+stdin = codecs.getreader('utf-8')(sys.stdin.buffer, errors='replace')
+outputs = {}
+line = ""
+while True:
+    # We can't use readlines here because it buffers the entirety of stdin for
+    # reasons
+    char = stdin.read(1)
+    if not char:
+        break
+    line += char
+    if char != '\n':
+        continue
 
-for line in stdin.readlines():
+    line = line.strip().lstrip()
+
+    # Support gha core.setSecret
+    if line.startswith('::add-mask::'):
+        secret = line[len('::add-mask::'):]
+        secrets.add(secret)
+        line = ''
+        continue
+
+    # Support gha core.setOutput
+    if line.startswith('::set-output'):
+        print("I GOT AN OUTPUT")
+        output = line[len('::set-output'):]
+        name, value = output.split('::', 1)
+        name = name.split('=')[1]
+        outputs[name] = value
+        line = ''
+        continue
+
     for secret in secrets:
         line = line.replace(secret, "https://www.youtube.com/watch?v=zwZISypgA9M")
-    sys.stdout.write(line)
-    sys.stdout.flush()
+    print(line)
+    line = ''
+
+
+output_content_sh = 'env '
+for name, value in outputs.items():
+    output_content_sh += f' INPUT_{name}="{value}"'
+decisionlib.create_extra_artifact('outputs.sh', output_content_sh.encode())

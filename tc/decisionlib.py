@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import taskcluster
+from taskcluster.generated import queue
 
 
 # Public API
@@ -278,6 +279,7 @@ class Task:
             seen = set()
             return [x for x in xs if not (x in seen or seen.add(x))]
 
+        print("OK WHAT", dedup([CONFIG.decision_task_id] + self.dependencies))
         queue_payload = {
             "taskGroupId": CONFIG.decision_task_id,
             "dependencies": dedup([CONFIG.decision_task_id] + self.dependencies),
@@ -376,6 +378,9 @@ class Task:
             + "/v1/task/%s/artifacts/%s/%s" % (task_id, directory, artifact_name),
             os.path.join(out_directory, url_basename(artifact_name)), pre=pre
         )
+
+    def with_output_from(self, task_id):
+        raise NotImplementedError
 
     def with_repo_bundle(self, name, dest, *, pre=False, **kwargs):
         return self.with_curl_artifact_script(
@@ -585,6 +590,12 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
             "FETCH_HEAD",
             pre=pre,
             **kwargs,
+        )
+
+    def with_output_from(self, task_id):
+        return (self
+            .with_curl_artifact_script(task_id, 'outputs.bat', f"%HOMEDRIVE%%HOMEPATH%\\output.bat", 'private')
+            .with_early_script(f'%HOMEDRIVE%%HOMEPATH%\\output.bat')
         )
 
     def with_repo(self, path, fetch_url, fetch_ref, checkout_sha, sparse_checkout=None, pre=False):
@@ -861,7 +872,8 @@ class DockerWorkerTask(UnixTaskMixin, Task):
                 "-o",
                 "pipefail",
                 "-c",
-                "({}) && (({}) 2>&1 | python3 -u $HOME/$TASK_ID/ci/tc/filter.py)".format(deindent("\n".join(self.prescripts)), deindent("\n".join(self.scripts))),
+                "`[[ -f $HOME/$TASK_ID/outputs.sh ]] && cat $HOME/$TASK_ID/outputs.sh` bash --login -xeo pipefail -c " +
+                "\"({}) && (({}) 2>&1 | python3 -u $HOME/$TASK_ID/ci/tc/filter.py)\"".format(deindent("\n".join(self.prescripts).replace('"', '\\"')), deindent("\n".join(self.scripts)).replace('"', '\\"')),
             ],
         }
         return dict_update_if_truthy(
@@ -879,6 +891,11 @@ class DockerWorkerTask(UnixTaskMixin, Task):
                 }
                 for (type_, path) in self.artifacts
             },
+        )
+
+    def with_output_from(self, task_id):
+        return (self
+            .with_curl_artifact_script(task_id, 'outputs.sh', f"$HOME/$TASK_ID/output.sh", 'private')
         )
 
     def with_features(self, *names):

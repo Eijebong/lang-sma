@@ -34,9 +34,7 @@ class GithubAction:
             escaped_v = str(v).replace('"','\\"')
             out += f"set INPUT_{k}=\"{escaped_v}\"\n"
 
-        # TODO: Move this to cwd/_temp
         out += "set RUNNER_TEMP=_temp\n"
-        # TODO: Move this to cwd/_work
         out += "set GITHUB_WORKSPACE=\"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\\"\n"
 
         return out
@@ -44,7 +42,7 @@ class GithubAction:
     def parse_config(self):
         url = 'https://raw.githubusercontent.com/' + self.repo_name + '/master/' + self.action_path + '/action.yml'
         config = requests.get(url).text
-        config = yaml.load(config)
+        config = yaml.full_load(config)
         for name, content in config.get('inputs', {}).items():
             if "default" in content:
                 self.args[name] = content["default"]
