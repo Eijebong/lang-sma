@@ -15,6 +15,10 @@ tasks:
       $if: tasks_for == "github-pull-request"
       then: ${event.pull_request.parent.name}
       else: ${event.repository.name}
+    repo_full_name:
+      $if: tasks_for == "github-pull-request"
+      then: ${event.pull_request.parent.full_name}
+      else: ${event.repository.full_name}
     branch:
         $if: "event.ref[:11] == 'refs/heads/'"
         then: "branch:${event.ref[11:]}"
@@ -76,5 +80,6 @@ tasks:
             TASK_OWNER: ${event.pusher.name}@users.noreply.github.com
             TASK_SOURCE: ${event.compare}
             REPO_NAME: ${repo_name}
+            REPO_FULL_NAME: ${repo_full_name}
             CI_REPO_URL: ${event.repository.clone_url} # TODO: actions repo?
             CI_REPO_REF: ci # TODO: main

@@ -65,7 +65,6 @@ while True:
 
     # Support gha core.setOutput
     if line.startswith('::set-output'):
-        print("I GOT AN OUTPUT")
         output = line[len('::set-output'):]
         name, value = output.split('::', 1)
         name = name.split('=')[1]

@@ -2,6 +2,23 @@ import requests
 import yaml
 
 
+class OutputMapping:
+    def __init__(self, input_name, mapped_output_action, mapped_output_name, from_task_id=None):
+        self.input_name = input_name
+        self.mapped_output_action = mapped_output_action
+        self.mapped_output_name = mapped_output_name
+        self.task_id = from_task_id
+
+    def to_dict(self):
+        mapping = {
+            "input": self.input_name,
+            "from": {"action": self.mapped_output_action, "output": self.mapped_output_name},
+            "task_id": self.task_id
+        }
+
+        return mapping
+
+
 class GithubAction:
     def __init__(self, path, args):
         """
@@ -12,32 +29,23 @@ class GithubAction:
         self.args = {}
         self.parse_config()
         self.args.update(args)
+        self.output_mappings = []
+        self.secret_inputs = {}
 
-    def env_variables(self):
-        out = ""
-        for k, v in self.args.items():
-            k = k.upper()
-            escaped_v = str(v).replace('"','\\"')
-            out += f"export INPUT_{k}=\"{escaped_v}\"\n"
+    def env_variables(self, platform):
+        if platform == 'linux':
+            return {
+                "RUNNER_TEMP": "$HOME/$TASK_ID/_temp",
+                "GITHUB_WORKSPACE": "$HOME/$TASK_ID",
+            }
+        elif platform == 'win':
+            return {
+                "RUNNER_TEMP": "_temp",
+                "GITHUB_WORKSPACE": "%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\",
+            }
+        else:
+            raise NotImplementedError
 
-        # TODO: Move this to cwd/_temp
-        out += "export RUNNER_TEMP=\"$HOME/$TASK_ID/_temp\"\n"
-        # TODO: Move this to cwd/_work
-        out += "export GITHUB_WORKSPACE=\"$HOME/$TASK_ID\"\n"
-
-        return out
-
-    def env_variables_windows(self):
-        out = ""
-        for k, v in self.args.items():
-            k = k.upper()
-            escaped_v = str(v).replace('"','\\"')
-            out += f"set INPUT_{k}=\"{escaped_v}\"\n"
-
-        out += "set RUNNER_TEMP=_temp\n"
-        out += "set GITHUB_WORKSPACE=\"%HOMEDRIVE%%HOMEPATH%\\%TASK_ID%\\\"\n"
-
-        return out
 
     def parse_config(self):
         url = 'https://raw.githubusercontent.com/' + self.repo_name + '/master/' + self.action_path + '/action.yml'
@@ -72,3 +80,33 @@ class GithubAction:
     @property
     def script_path(self):
         return self.action_path + "/index.js"
+
+    def gen_script_win(self):
+        script = "node {}/{}".format(self.repo_name, self.script_path)
+
+        return script
+
+    def gen_script_linux(self):
+        script = "node {}/{}".format(self.repo_name, self.script_path)
+
+        return script
+
+    def gen_script(self, platform):
+        if platform == 'linux':
+            return self.gen_script_linux()
+        elif platform == 'win':
+            return self.gen_script_win()
+        else:
+            raise NotImplementedError
+
+    def output_mapping(self):
+        return [output.to_dict() for output in self.output_mappings]
+
+
+    def with_mapped_output(self, name, source_step, source_name, task_id=None):
+        self.output_mappings.append(OutputMapping(name, source_step, source_name, task_id))
+        return self
+
+    def with_secret_input(self, input_name, secret, name):
+        self.secret_inputs[input_name] = {"secret": secret, "name": name}
+        return self
