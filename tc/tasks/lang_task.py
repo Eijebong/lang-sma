@@ -25,16 +25,15 @@ def create_lang_task(with_apertium):
 
 
 def create_bundle_task(os, type_, lang_task_id):
-    print("Task ID: ", lang_task_id)
     if os == "windows-latest":
         return (
             windows_task("Bundle lang: %s %s" % (os, type_))
             .with_git()
-            .with_gha("init", GithubAction("Eijebong/divvun-actions/pahkat/init", {"repo": "https://pahkat.uit.no/devtools/", "channel": "nightly", "packages": "pahkat-uploader" }))
             .with_curl_artifact_script(lang_task_id, "spellers.tar.gz", extract=True)
+            .with_gha("setup", GithubAction("Eijebong/divvun-actions/setup", {}).with_secret_input("key", "divvun", "DIVVUN_KEY"))
+            .with_gha("init", GithubAction("Eijebong/divvun-actions/pahkat/init", {"repo": "https://pahkat.uit.no/devtools/", "channel": "nightly", "packages": "pahkat-uploader" }))
             .with_gha("version", GithubAction("Eijebong/divvun-actions/version", {"speller-manifest": True, "nightly": "develop, test-ci"}).with_secret_input("GITHUB_TOKEN", "divvun", "GITHUB_TOKEN"))
             .with_gha("bundle", GithubAction("Eijebong/divvun-actions/speller/bundle", {"speller-type": type_, "speller-manifest-path": "manifest.toml"}).with_mapped_output("speller-paths", "build", "speller-paths", task_id=lang_task_id).with_mapped_output("version", "version", "version"))
-                #, "speller-paths": "TODO", "version": "TODO"}))
             .with_prep_gha_tasks()
             .find_or_create("bundle.%s_x64_%s.%s" % (os, type_, CONFIG.tree_hash()))
         )
