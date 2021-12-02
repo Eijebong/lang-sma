@@ -11,6 +11,17 @@ import decisionlib
 
 SECRETS = set()
 OUTPUTS = defaultdict(lambda: {})
+_ORIG_PRINT = print
+
+def filtered_print(*args):
+    filtered = []
+    for arg in args:
+        for secret in SECRETS:
+            arg = str(arg).replace(secret, "[******]")
+        filtered.append(arg)
+    _ORIG_PRINT(*filtered)
+
+print = filtered_print
 
 def gather_secrets():
     secrets_service = helper.TaskclusterConfig().get_service("secrets")
@@ -118,9 +129,7 @@ def write_outputs():
 
 
 async def run_step(step_name, step):
-    print(os.environ)
     env = get_env_for(step_name, step)
-    print(env)
     process = await asyncio.subprocess.create_subprocess_shell(step["script"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,)
 
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
