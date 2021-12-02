@@ -460,10 +460,17 @@ class GenericWorkerTask(Task):
             "command": self.build_command(),
             "maxRunTime": self.max_run_time_minutes * 60,
         }
+        mounts = []
+        seen = set()
+        for m in self.mounts:
+            if m['directory'] not in seen:
+                mounts.append(m)
+                seen.add(m['directory'])
+
         return dict_update_if_truthy(
             worker_payload,
             env=self.env,
-            mounts=self.mounts,
+            mounts=mounts,
             features=self.features,
             artifacts=[
                 {
