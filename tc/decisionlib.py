@@ -655,9 +655,8 @@ class WindowsGenericWorkerTask(GenericWorkerTask):
 
         This is implied by `with_repo`.
         """
-        return self.with_path_from_homedir("git\\cmd", pre=pre).with_directory_mount(
-            "https://github.com/git-for-windows/git/releases/download/"
-            + "v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip",
+        return self.with_path_from_homedir("git\\cmd", pre=pre).with_path_from_homedir("git\\bin", pre=pre).with_directory_mount(
+            "https://github.com/git-for-windows/git/releases/download/v2.34.1.windows.1/Git-2.34.1-64-bit.tar.bz2",
             path="git",
         )
 
