@@ -71,7 +71,7 @@ tasks:
               cd ci &&
               git fetch --depth 1 "$CI_REPO_URL" "$CI_REPO_REF" &&
               git reset --hard FETCH_HEAD &&
-              python3 tc/decision_task.py
+              python3 decision_task.py
           env:
             GIT_URL: ${event.repository.clone_url}
             TASK_FOR: ${tasks_for}
@@ -81,5 +81,5 @@ tasks:
             TASK_SOURCE: ${event.compare}
             REPO_NAME: ${repo_name}
             REPO_FULL_NAME: ${repo_full_name}
-            CI_REPO_URL: ${event.repository.clone_url} # TODO: actions repo?
-            CI_REPO_REF: ci # TODO: main
+            CI_REPO_URL: https://github.com/Eijebong/divvun-tc.git
+            CI_REPO_REF: main
